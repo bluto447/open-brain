@@ -1,0 +1,285 @@
+/**
+ * Open Brain — Ingest Edge Function
+ *
+ * Receives a plain-text note via POST, then:
+ *   1. Generates a 1536-dim embedding with OpenAI text-embedding-3-small
+ *   2. Extracts structured metadata with OpenAI gpt-4o-mini
+ *   3. Inserts the content, embedding, and metadata into the `open_brain` table
+ *
+ * Environment variables required:
+ *   - OPENAI_API_KEY          — OpenAI secret key
+ *   - SUPABASE_URL            — Your Supabase project URL (auto-set in Edge Functions)
+ *   - SUPABASE_SERVICE_ROLE_KEY — Service-role key for server-side writes (auto-set)
+ */
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface IngestRequest {
+  content: string;
+  source?: string;
+}
+
+interface ExtractedMetadata {
+  tags: string[];
+  people: string[];
+  topics: string[];
+  sentiment: "positive" | "neutral" | "negative";
+  action_items: string[];
+}
+
+interface OpenBrainRow {
+  id: string;
+  content: string;
+  source: string;
+  embedding: number[];
+  metadata: ExtractedMetadata;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// CORS helpers
+// ---------------------------------------------------------------------------
+
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
+};
+
+function corsResponse(body: string, status: number, extra?: Record<string, string>): Response {
+  return new Response(body, {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS, ...extra },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI helpers
+// ---------------------------------------------------------------------------
+
+const OPENAI_BASE = "https://api.openai.com/v1";
+
+/**
+ * Generate a 1536-dimensional embedding for the given text using
+ * OpenAI's text-embedding-3-small model.
+ */
+async function generateEmbedding(text: string, apiKey: string): Promise<number[]> {
+  const response = await fetch(`${OPENAI_BASE}/embeddings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "text-embedding-3-small",
+      input: text,
+      dimensions: 1536,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`OpenAI embeddings error (${response.status}): ${error}`);
+  }
+
+  const data = await response.json();
+  return data.data[0].embedding as number[];
+}
+
+/**
+ * Extract structured metadata from the given text using gpt-4o-mini.
+ * Returns tags, people, topics, sentiment, and action_items.
+ */
+async function extractMetadata(text: string, apiKey: string): Promise<ExtractedMetadata> {
+  const systemPrompt = `You are a metadata extraction assistant. Given a piece of text, extract the following fields and return ONLY valid JSON — no markdown, no commentary.
+
+Fields to extract:
+- tags: array of concise keyword tags (max 10) that describe the content
+- people: array of full or partial names of any people mentioned
+- topics: array of broader subject areas covered (e.g. "machine learning", "project management")
+- sentiment: overall tone — exactly one of "positive", "neutral", or "negative"
+- action_items: array of any tasks, to-dos, or follow-ups mentioned in the text
+
+Example output shape:
+{
+  "tags": ["supabase", "edge functions"],
+  "people": ["Alice Smith"],
+  "topics": ["backend development"],
+  "sentiment": "positive",
+  "action_items": ["Deploy the edge function by Friday"]
+}`;
+
+  const response = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: text },
+      ],
+      temperature: 0,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`OpenAI chat error (${response.status}): ${error}`);
+  }
+
+  const data = await response.json();
+  const raw = data.choices[0].message.content as string;
+
+  let parsed: ExtractedMetadata;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`Failed to parse metadata JSON from gpt-4o-mini: ${raw}`);
+  }
+
+  // Normalise and provide safe defaults in case any field is missing
+  return {
+    tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+    people: Array.isArray(parsed.people) ? parsed.people : [],
+    topics: Array.isArray(parsed.topics) ? parsed.topics : [],
+    sentiment: ["positive", "neutral", "negative"].includes(parsed.sentiment)
+      ? parsed.sentiment
+      : "neutral",
+    action_items: Array.isArray(parsed.action_items) ? parsed.action_items : [],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
+
+Deno.serve(async (req: Request) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
+  // Only accept POST
+  if (req.method !== "POST") {
+    return corsResponse(
+      JSON.stringify({ error: "Method not allowed. Use POST." }),
+      405,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Read environment variables
+  // ---------------------------------------------------------------------------
+  const openAiKey = Deno.env.get("OPENAI_API_KEY");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!openAiKey || !supabaseUrl || !supabaseServiceKey) {
+    console.error("Missing required environment variables");
+    return corsResponse(
+      JSON.stringify({ error: "Server misconfiguration: missing environment variables." }),
+      500,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Parse and validate request body
+  // ---------------------------------------------------------------------------
+  let body: IngestRequest;
+  try {
+    body = await req.json();
+  } catch {
+    return corsResponse(
+      JSON.stringify({ error: "Invalid JSON body." }),
+      400,
+    );
+  }
+
+  const { content, source = "manual" } = body;
+
+  if (!content || typeof content !== "string") {
+    return corsResponse(
+      JSON.stringify({ error: "Missing or invalid 'content' field. Must be a non-empty string." }),
+      400,
+    );
+  }
+
+  const trimmedContent = content.trim();
+  if (trimmedContent.length === 0) {
+    return corsResponse(
+      JSON.stringify({ error: "'content' must not be blank." }),
+      400,
+    );
+  }
+
+  if (trimmedContent.length > 100_000) {
+    return corsResponse(
+      JSON.stringify({ error: "'content' exceeds maximum length of 100,000 characters." }),
+      400,
+    );
+  }
+
+  if (typeof source !== "string") {
+    return corsResponse(
+      JSON.stringify({ error: "'source' must be a string when provided." }),
+      400,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 1 & 2: Generate embedding and extract metadata in parallel
+  // ---------------------------------------------------------------------------
+  let embedding: number[];
+  let metadata: ExtractedMetadata;
+
+  try {
+    [embedding, metadata] = await Promise.all([
+      generateEmbedding(trimmedContent, openAiKey),
+      extractMetadata(trimmedContent, openAiKey),
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("OpenAI pipeline error:", message);
+    return corsResponse(
+      JSON.stringify({ error: "Failed to process content with AI.", detail: message }),
+      500,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 3: Insert into Supabase
+  // ---------------------------------------------------------------------------
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const { data, error } = await supabase
+    .from("open_brain")
+    .insert({
+      content: trimmedContent,
+      source: source.trim() || "manual",
+      embedding,
+      metadata,
+    })
+    .select()
+    .single<OpenBrainRow>();
+
+  if (error) {
+    console.error("Supabase insert error:", error);
+    return corsResponse(
+      JSON.stringify({ error: "Failed to save to database.", detail: error.message }),
+      500,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Success — return the inserted row
+  // ---------------------------------------------------------------------------
+  return corsResponse(JSON.stringify({ success: true, data }), 201);
+});

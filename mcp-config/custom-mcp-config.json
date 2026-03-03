@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "open_brain": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "node",
+        "C:\\path\\to\\custom-mcp-server\\index.js"
+      ],
+      "env": {
+        "SUPABASE_URL": "YOUR_SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY": "YOUR_SERVICE_ROLE_KEY",
+        "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY",
+        "OPEN_BRAIN_INGEST_URL": "YOUR_EDGE_FUNCTION_URL"
+      }
+    }
+  }
+}

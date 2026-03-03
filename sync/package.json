@@ -1,0 +1,20 @@
+{
+  "name": "open-brain-notion-sync",
+  "version": "1.0.0",
+  "description": "Syncs the Notion Session Log database into the Supabase open_brain table with embeddings and extracted metadata.",
+  "main": "notion-sync.js",
+  "scripts": {
+    "sync": "node notion-sync.js",
+    "sync:full": "node notion-sync.js --full"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.15",
+    "@supabase/supabase-js": "^2.43.4",
+    "dotenv": "^16.4.5",
+    "openai": "^4.47.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

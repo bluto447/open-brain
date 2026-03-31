@@ -140,6 +140,84 @@ async function addMemory({ content, source = "claude" }) {
 }
 
 /**
+ * update_memory
+ * Updates an existing memory's content and metadata. Re-embeds the new
+ * content via OpenAI, then calls the update_memory RPC and patches the
+ * embedding column.
+ */
+async function updateMemory({ id, content, metadata }) {
+  // 1. Re-embed the new content
+  const embedding = await embedText(content);
+
+  // 2. Update content + metadata via RPC
+  const { data: updated, error: rpcError } = await supabase.rpc("update_memory", {
+    p_id: id,
+    p_content: content,
+    p_metadata: metadata || {},
+  });
+
+  if (rpcError) throw new Error(`update_memory RPC error: ${rpcError.message}`);
+
+  // 3. Patch the embedding column (RPC doesn't touch it)
+  const { error: embedError } = await supabase
+    .from("open_brain")
+    .update({ embedding })
+    .eq("id", id);
+
+  if (embedError) throw new Error(`Embedding update error: ${embedError.message}`);
+
+  return updated;
+}
+
+/**
+ * deprecate_memory
+ * Marks a memory as no longer valid by calling the deprecate_memory RPC.
+ */
+async function deprecateMemory({ id, reason, superseded_by = null }) {
+  const params = { p_id: id, p_reason: reason };
+  if (superseded_by) params.p_superseded_by = superseded_by;
+
+  const { data, error } = await supabase.rpc("deprecate_memory", params);
+
+  if (error) throw new Error(`deprecate_memory RPC error: ${error.message}`);
+
+  return data;
+}
+
+/**
+ * merge_memories
+ * Merges multiple memories into one. Creates a new memory with the merged
+ * content, deprecates the originals, then embeds the new content.
+ */
+async function mergeMemories({ ids, merged_content, source = "merge" }) {
+  // 1. Call merge RPC (creates new row with embedding = NULL, deprecates sources)
+  const { data, error } = await supabase.rpc("merge_memories", {
+    p_ids: ids,
+    p_merged_content: merged_content,
+    p_source: source,
+  });
+
+  if (error) throw new Error(`merge_memories RPC error: ${error.message}`);
+
+  // 2. Embed the merged content and update the new row
+  if (data && data.length > 0) {
+    const newId = data[0].id;
+    const embedding = await embedText(merged_content);
+
+    const { error: embedError } = await supabase
+      .from("open_brain")
+      .update({ embedding })
+      .eq("id", newId);
+
+    if (embedError) {
+      process.stderr.write(`[open-brain] Warning: merge succeeded but embedding failed: ${embedError.message}\n`);
+    }
+  }
+
+  return data;
+}
+
+/**
  * search_by_tag
  * Returns all brain entries that have a specific tag, by calling the
  * search_by_tag RPC function.
@@ -218,6 +296,78 @@ const TOOLS = [
     },
   },
   {
+    name: "update_memory",
+    description:
+      "Update an existing memory's content and metadata. Automatically re-embeds the new content.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "number",
+          description: "The ID of the memory to update.",
+        },
+        content: {
+          type: "string",
+          description: "The new content text for the memory.",
+        },
+        metadata: {
+          type: "object",
+          description:
+            "New metadata object (replaces existing). Should include tags, people, topics, sentiment, action_items.",
+        },
+      },
+      required: ["id", "content"],
+    },
+  },
+  {
+    name: "deprecate_memory",
+    description:
+      "Mark a memory as no longer valid (soft-delete). Sets valid_to and records the reason. Optionally links to a replacement memory.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: {
+          type: "number",
+          description: "The ID of the memory to deprecate.",
+        },
+        reason: {
+          type: "string",
+          description: "Why this memory is being deprecated.",
+        },
+        superseded_by: {
+          type: "number",
+          description:
+            "Optional ID of the memory that replaces this one.",
+        },
+      },
+      required: ["id", "reason"],
+    },
+  },
+  {
+    name: "merge_memories",
+    description:
+      "Merge multiple memories into a single new memory. Deprecates all source memories and creates a new one with the merged content. Automatically embeds the merged content.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        ids: {
+          type: "array",
+          items: { type: "number" },
+          description: "Array of memory IDs to merge.",
+        },
+        merged_content: {
+          type: "string",
+          description: "The combined/synthesized content for the new memory.",
+        },
+        source: {
+          type: "string",
+          description: 'Source label for the new memory (default: "merge").',
+        },
+      },
+      required: ["ids", "merged_content"],
+    },
+  },
+  {
     name: "search_by_tag",
     description: "Return all Open Brain memories that have a specific tag.",
     inputSchema: {
@@ -246,6 +396,9 @@ const TOOL_HANDLERS = {
   list_recent: listRecent,
   add_memory: addMemory,
   search_by_tag: searchByTag,
+  update_memory: updateMemory,
+  deprecate_memory: deprecateMemory,
+  merge_memories: mergeMemories,
 };
 
 // ---------------------------------------------------------------------------
@@ -255,7 +408,7 @@ const TOOL_HANDLERS = {
 const server = new Server(
   {
     name: "open-brain",
-    version: "1.0.0",
+    version: "1.5.0",
   },
   {
     capabilities: {

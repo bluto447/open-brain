@@ -21,6 +21,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 interface IngestRequest {
   content: string;
   source?: string;
+  memory_type?: string;
 }
 
 interface ExtractedMetadata {
@@ -158,6 +159,66 @@ Example output shape:
 }
 
 // ---------------------------------------------------------------------------
+// Memory type classification
+// ---------------------------------------------------------------------------
+
+const VALID_MEMORY_TYPES = ["episodic", "semantic", "procedural", "preference", "decision"] as const
+type MemoryType = typeof VALID_MEMORY_TYPES[number]
+
+/**
+ * Classify the memory type using gpt-4o-mini.
+ * Returns one of: episodic, semantic, procedural, preference, decision.
+ */
+async function classifyMemoryType(text: string, apiKey: string): Promise<MemoryType> {
+  const systemPrompt = `You are a memory classification assistant. Given a piece of text, classify it into exactly one memory type. Return ONLY valid JSON with a single "memory_type" field.
+
+Memory types:
+- episodic: A specific event, session, meeting, or experience with a time/place context. Example: "Met with Alice on Tuesday to discuss the roadmap."
+- semantic: A fact, concept, or general knowledge not tied to a specific event. Example: "Supabase uses PostgreSQL under the hood."
+- procedural: A how-to, process, workflow, or set of steps. Example: "To deploy, run supabase functions deploy."
+- preference: A personal preference, opinion, or value judgment. Example: "I prefer dark mode for coding."
+- decision: A choice that was made, with or without rationale. Example: "We decided to use pgvector instead of Pinecone."
+
+Example output: {"memory_type": "semantic"}`
+
+  const response = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: text },
+      ],
+      temperature: 0,
+      response_format: { type: "json_object" },
+    }),
+  })
+
+  if (!response.ok) {
+    console.error(`Memory type classification failed (${response.status}), defaulting to 'semantic'`)
+    return "semantic"
+  }
+
+  const data = await response.json()
+  const raw = data.choices[0].message.content as string
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (VALID_MEMORY_TYPES.includes(parsed.memory_type)) {
+      return parsed.memory_type as MemoryType
+    }
+  } catch {
+    // fall through to default
+  }
+
+  return "semantic"
+}
+
+// ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
 
@@ -203,7 +264,11 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const { content, source = "manual" } = body;
+  const { content, source = "manual", memory_type: requestedType } = body;
+
+  // Check for force_insert query param (bypasses dedup check)
+  const url = new URL(req.url)
+  const forceInsert = url.searchParams.get("force_insert") === "true"
 
   if (!content || typeof content !== "string") {
     return corsResponse(
@@ -235,16 +300,27 @@ Deno.serve(async (req: Request) => {
   }
 
   // ---------------------------------------------------------------------------
-  // Step 1 & 2: Generate embedding and extract metadata in parallel
+  // Step 1, 2, 3: Generate embedding, extract metadata, classify type in parallel
   // ---------------------------------------------------------------------------
   let embedding: number[];
   let metadata: ExtractedMetadata;
+  let memoryType: MemoryType;
 
   try {
-    [embedding, metadata] = await Promise.all([
+    // If caller provided a valid memory_type, skip classification
+    const skipClassification = requestedType && VALID_MEMORY_TYPES.includes(requestedType as MemoryType)
+
+    const [embeddingResult, metadataResult, typeResult] = await Promise.all([
       generateEmbedding(trimmedContent, openAiKey),
       extractMetadata(trimmedContent, openAiKey),
+      skipClassification
+        ? Promise.resolve(requestedType as MemoryType)
+        : classifyMemoryType(trimmedContent, openAiKey),
     ]);
+
+    embedding = embeddingResult;
+    metadata = metadataResult;
+    memoryType = typeResult;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("OpenAI pipeline error:", message);
@@ -255,10 +331,38 @@ Deno.serve(async (req: Request) => {
   }
 
   // ---------------------------------------------------------------------------
-  // Step 3: Insert into Supabase
+  // Step 4: Check for duplicates (unless force_insert=true)
   // ---------------------------------------------------------------------------
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+  if (!forceInsert) {
+    const { data: duplicates, error: dupError } = await supabase.rpc("find_duplicates", {
+      p_embedding: embedding,
+      p_threshold: 0.92,
+      p_limit: 1,
+    });
+
+    if (dupError) {
+      console.error("Dedup check error:", dupError);
+      // Non-fatal: proceed with insert if dedup check fails
+    } else if (duplicates && duplicates.length > 0) {
+      const match = duplicates[0];
+      return corsResponse(
+        JSON.stringify({
+          duplicate: true,
+          existing_id: match.id,
+          similarity: match.similarity,
+          existing_content_preview: match.content.substring(0, 200),
+          message: "A similar memory already exists. Use ?force_insert=true to insert anyway, or call update_memory to update the existing one.",
+        }),
+        200,
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 5: Insert into Supabase
+  // ---------------------------------------------------------------------------
   const { data, error } = await supabase
     .from("open_brain")
     .insert({
@@ -266,6 +370,7 @@ Deno.serve(async (req: Request) => {
       source: source.trim() || "manual",
       embedding,
       metadata,
+      memory_type: memoryType,
     })
     .select()
     .single<OpenBrainRow>();

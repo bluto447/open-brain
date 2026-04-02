@@ -107,7 +107,7 @@ async function semanticSearch({ query, match_count = 10, match_threshold = 0.5 }
  */
 async function listRecent({ limit = 20 }) {
   const { data, error } = await supabase.rpc("list_recent", {
-    row_limit: limit,
+    count: limit,
   });
 
   if (error) throw new Error(`list_recent RPC error: ${error.message}`);
@@ -224,8 +224,9 @@ async function mergeMemories({ ids, merged_content, source = "merge" }) {
  */
 async function searchByTag({ tag, limit = 50 }) {
   const { data, error } = await supabase.rpc("search_by_tag", {
-    tag_query: tag,
-    row_limit: limit,
+    tag_key: "tags",
+    tag_value: tag,
+    result_limit: limit,
   });
 
   if (error) throw new Error(`search_by_tag RPC error: ${error.message}`);

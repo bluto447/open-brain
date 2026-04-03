@@ -27,8 +27,11 @@ Open Brain is a self-hosted knowledge graph that stores your memories, notes, an
 1. **Ingest** — Send any text to the Edge Function via POST
 2. **Embed** — OpenAI `text-embedding-3-small` generates a 1536-dimensional vector
 3. **Extract** — OpenAI `gpt-4o-mini` pulls structured metadata (tags, people, topics, sentiment, action items)
-4. **Store** — Content, embedding, and metadata are saved to Supabase PostgreSQL with pgvector
-5. **Search** — Query by semantic similarity, tags, recency, or full-text via MCP or direct API
+4. **Classify** — OpenAI `gpt-4o-mini` assigns a memory type (episodic, semantic, procedural, preference, decision)
+5. **Dedup** — Checks for near-duplicate memories (cosine similarity > 0.92) before inserting
+6. **Store** — Content, embedding, metadata, and type are saved to Supabase PostgreSQL with pgvector
+7. **Search** — Query by semantic similarity, tags, recency, or type via MCP or direct API
+8. **Mutate** — Update, deprecate, or merge memories to keep the brain accurate over time
 
 ## Stack
 
@@ -40,6 +43,29 @@ Open Brain is a self-hosted knowledge graph that stores your memories, notes, an
 | Ingest API | Supabase Edge Function (Deno) |
 | AI bridge | MCP server for Claude Desktop |
 | Vector index | HNSW (cosine similarity) |
+
+## v1.5 — Memory Intelligence (current)
+
+v1.5 adds memory mutation, temporal validity, and type-aware retrieval:
+
+- **Memory types** — Every memory is classified as `episodic`, `semantic`, `procedural`, `preference`, or `decision`
+- **Temporal validity** — `valid_from` and `valid_to` columns track when facts were true
+- **Mutation tools** — Update, deprecate, and merge memories via MCP (Claude can self-correct its own brain)
+- **Dedup on ingest** — Near-duplicate detection prevents redundant memories (threshold: 0.92 cosine similarity)
+- **Contradiction detection** — `find_contradictions()` surfaces high-similarity memory pairs for review
+
+### MCP Tools (8 total)
+
+| Tool | Description |
+|------|-------------|
+| `semantic_search` | Natural language search using vector similarity |
+| `add_memory` | Store a new memory (auto-embeds + extracts metadata) |
+| `list_recent` | Get the most recent memories |
+| `search_by_tag` | Find memories by tag |
+| `brain_stats` | Memory count, source breakdown, top tags |
+| `update_memory` | Update content + re-embed (v1.5) |
+| `deprecate_memory` | Soft-delete with reason + superseded_by chain (v1.5) |
+| `merge_memories` | Combine N memories into one, deprecate sources (v1.5) |
 
 ## Quick Start
 
@@ -73,37 +99,41 @@ See [`mcp-config/setup-guide.md`](mcp-config/setup-guide.md) for MCP server setu
 
 ```
 open-brain/
-├── supabase-setup.sql              # Database schema, indexes, RPC functions
+├── supabase-setup.sql              # Original schema (reference only)
+├── migrations/
+│   ├── v1.5-memory-intelligence.sql    # v1.5 schema: types, temporal, mutation RPCs
+│   └── v1.5.1-contradiction-detection.sql  # find_contradictions() RPC
 ├── edge-functions/
-│   ├── ingest/
-│   │   └── index.ts                # Deno Edge Function — ingest pipeline
-│   └── README.md                   # Edge Function docs & testing guide
+│   └── ingest/
+│       └── index.ts                # Deno Edge Function — ingest + classify + dedup
 ├── mcp-config/
-│   ├── claude-desktop-config.json  # Generic Supabase MCP config
-│   ├── custom-mcp-config.json      # Custom MCP server config
 │   ├── custom-mcp-server/
-│   │   ├── index.js                # MCP server with semantic_search, add_memory, etc.
-│   │   └── package.json            # Dependencies
+│   │   ├── index.js                # MCP server (8 tools)
+│   │   └── package.json
 │   └── setup-guide.md              # Windows 11 setup guide
+├── scripts/
+│   ├── backfill-memory-types.js    # Classify existing memories via gpt-4o-mini
+│   └── package.json
 ├── sync/
 │   ├── notion-sync.js              # Notion Session Log → Open Brain sync
-│   ├── package.json                # Dependencies
-│   ├── .env.example                # Environment variable template
-│   └── README.md                   # Sync setup guide
-├── LICENSE                         # MIT License
-└── README.md                       # This file
+│   └── package.json
+├── LICENSE
+└── README.md
 ```
 
 ## API Reference
 
 ### Ingest Endpoint
 
-**POST** `/functions/v1/ingest`
+**POST** `/functions/v1/hyper-worker`
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `content` | string | Yes | Text to ingest (max 100,000 chars) |
 | `source` | string | No | Origin label (default: `"manual"`) |
+| `memory_type` | string | No | Override auto-classification. One of: `episodic`, `semantic`, `procedural`, `preference`, `decision` |
+
+**Query params:** `?force_insert=true` — bypass duplicate detection
 
 **Response (201):**
 
@@ -111,9 +141,10 @@ open-brain/
 {
   "success": true,
   "data": {
-    "id": "uuid",
+    "id": 42,
     "content": "Your text",
     "source": "manual",
+    "memory_type": "semantic",
     "embedding": [0.012, -0.034, ...],
     "metadata": {
       "tags": ["example"],
@@ -127,24 +158,43 @@ open-brain/
 }
 ```
 
+**Response (200 — duplicate detected):**
+
+```json
+{
+  "duplicate": true,
+  "existing_id": 38,
+  "similarity": 0.946,
+  "existing_content_preview": "Similar memory already stored...",
+  "message": "A similar memory already exists. Use ?force_insert=true to insert anyway."
+}
+```
+
 ### RPC Functions (via Supabase client)
 
 | Function | Description |
 |---|---|
-| `match_brain(query_embedding, match_threshold, match_count)` | Semantic similarity search |
-| `search_by_tag(tag_name, result_limit)` | Find memories by tag |
-| `list_recent(result_limit)` | Get most recent memories |
-| `add_memory(content_text, source_name, metadata_obj)` | Insert without embedding |
+| `match_brain(query_embedding, match_threshold, match_count, filter_type, only_valid)` | Semantic similarity search with optional type filter |
+| `search_by_tag(tag_key, tag_value, result_limit)` | Find memories by metadata tag |
+| `list_recent(count, filter_source)` | Get most recent memories |
+| `add_memory(p_content, p_metadata, p_source, p_embedding)` | Insert a memory row |
+| `update_memory(p_id, p_content, p_metadata)` | Update content + metadata (v1.5) |
+| `deprecate_memory(p_id, p_reason, p_superseded_by)` | Soft-delete with reason (v1.5) |
+| `merge_memories(p_ids, p_merged_content, p_source)` | Merge N memories into one (v1.5) |
+| `find_duplicates(p_embedding, p_threshold, p_limit)` | Find near-duplicate memories (v1.5) |
+| `find_contradictions(p_min_similarity, p_max_similarity, p_limit)` | Surface potential contradictions (v1.5) |
 
 ## Roadmap
 
 - [x] Supabase schema + pgvector
 - [x] Edge Function ingest pipeline
-- [x] MCP server for Claude Desktop
-- [ ] Memory migration (bulk import from AI tools)
+- [x] MCP server for Claude Desktop (4 tools)
+- [x] **v1.5 Memory Intelligence** — mutation tools, temporal validity, type classification, dedup, contradiction detection (8 tools)
+- [x] Memory type backfill (280 memories classified)
+- [ ] v2.0: Composite scoring (similarity + recency + access frequency)
+- [ ] v2.0: Relationship extraction (entity graph)
+- [ ] v2.0: Dashboard (memory stats + entity graph visualization)
 - [ ] Quick Capture templates (Slack webhook, iOS shortcut)
-- [ ] Weekly Review intelligence synthesis
-- [ ] Notion bi-directional sync
 - [ ] Open-source release + MCP marketplace listing
 
 ## License

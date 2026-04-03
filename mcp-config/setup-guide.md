@@ -122,14 +122,18 @@ If Claude returns results from your database, the connection is working.
 
 ## Option B — Custom MCP Server (Full Open Brain Integration)
 
-The custom server exposes four dedicated tools:
+The custom server exposes eight dedicated tools:
 
 | Tool | What it does |
 |---|---|
 | `semantic_search` | Embeds your query with OpenAI and finds semantically similar memories |
 | `list_recent` | Returns the N most recently added memories |
-| `add_memory` | Ingests new content via the Edge Function (chunking + embedding included) |
+| `add_memory` | Ingests new content with auto-embedding and metadata extraction |
 | `search_by_tag` | Returns all memories with a specific tag |
+| `brain_stats` | Returns memory count, source breakdown, top tags, and date range |
+| `update_memory` | Updates a memory's content, re-embeds, and auto-extracts new metadata (v1.5) |
+| `deprecate_memory` | Soft-deletes a memory with a reason; optionally links to a replacement (v1.5) |
+| `merge_memories` | Combines multiple memories into one new memory, deprecates the originals (v1.5) |
 
 ### Step 1: Install the custom server dependencies
 
@@ -285,3 +289,7 @@ Once Option B is working, you can ask Claude things like:
 - *"What did I save about the onboarding redesign?"*
 - *"Add a memory: the new API rate limit is 1000 req/min"*
 - *"Show me everything tagged 'meeting-notes'"*
+- *"Update memory 42 — the rate limit was changed to 2000 req/min"*
+- *"Deprecate memory 15 — that project was cancelled"*
+- *"Merge memories 38 and 39 into one combined summary"*
+- *"Give me brain stats"*

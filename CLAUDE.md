@@ -57,6 +57,17 @@ open-brain/
 ├── scripts/
 │   ├── backfill-memory-types.js           # Classify existing memories via gpt-4o-mini
 │   └── package.json
+├── notebooklm/                            # Cowork plugin — NotebookLM integration
+│   ├── .claude-plugin/plugin.json         # Plugin manifest
+│   ├── .mcp.json                          # MCP server config (notebooklm-mcp)
+│   ├── CONNECTORS.md                      # Open Brain MCP dependency docs
+│   ├── README.md
+│   └── skills/                            # 5 skills: create-notebook, audio-briefing,
+│       ├── create-notebook/               #   research-query, notebook-pipeline,
+│       ├── audio-briefing/                #   open-brain-sync
+│       ├── research-query/
+│       ├── notebook-pipeline/
+│       └── open-brain-sync/
 ├── sync/
 │   ├── notion-sync.js
 │   ├── package.json

@@ -48,8 +48,8 @@ None.
 | OB-014 | Review and resolve top contradictions | Done | 20 pairs reviewed: deprecated ID 26 (→53), merged IDs 291+293 (→306). 14 Gemini series kept, 3 sequential sessions kept. |
 | OB-015 | Update README with v1.5 features | Done | Added v1.5 section, 8-tool table, updated API docs, dedup response, roadmap. |
 | OB-016 | Update MCP server docs | Done | setup-guide.md updated with all 8 tools + v1.5 example prompts. |
-| OB-017 | Push to GitHub | Not Started | Brian pushes manually |
-| OB-018 | Log completion to Open Brain + Notion | Not Started | Session log + pipeline update |
+| OB-017 | Push to GitHub | Done | 3 commits pushed to main (April 3). |
+| OB-018 | Log completion to Open Brain + Notion | Done | Memory #351 logged, Notion project page updated (April 5) |
 
 ### Blocked
 
@@ -63,6 +63,8 @@ None.
 - OB-014: 20 pairs reviewed — 1 deprecated, 1 merged, 18 kept (April 3)
 - OB-015: README updated with v1.5 features, 8-tool table, API docs (April 3)
 - OB-016: MCP setup guide updated with all 8 tools (April 3)
+- OB-017: Pushed to GitHub (April 3)
+- OB-018: Completion logged to Open Brain (#351) + Notion project page updated (April 5)
 
 ---
 

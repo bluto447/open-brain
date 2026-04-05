@@ -1,4 +1,24 @@
-# Open Brain v1.5 — Sprint Status
+# Open Brain — Sprint Status
+
+## v1.5 COMPLETE (April 3, 2026)
+
+All 18 tasks shipped across 2 sprints. Memory mutation, temporal validity, type classification, dedup, contradiction detection, 8 MCP tools.
+
+---
+
+## v1.5.1: Doc-Sync (April 5, 2026)
+
+| ID | Task | Status | Notes |
+|---|---|---|---|
+| OB-019 | Create list_public_rpcs() + list_table_info() RPCs | Done | Deployed. SECURITY DEFINER, service_role only. |
+| OB-020 | Build arch-snapshot Edge Function | Done | Deployed v2. Dynamic table discovery, exact-match extension filter, Promise.allSettled. |
+| OB-021 | Create ship-checklist.md | Done | Cross-repo doc update checklist. |
+| OB-022 | Update yonasol-ops/ARCHITECTURE.md with pointers | Done | Removed hardcoded row counts, added authoritative source notes. |
+| OB-023 | Update CLAUDE.md + ARCHITECTURE.md | Done | Added Shipping section, updated file structure and Key Files. |
+
+---
+
+## v1.5 Sprint History
 
 ## Sprint 1: Memory Mutation
 **Dates:** March 31 – April 6, 2026
@@ -68,11 +88,11 @@ None.
 
 ---
 
-## Upcoming: v2.0 Preview
-
-After v1.5 ships, the next evolution targets:
+## Next: v2.0
 
 - Composite scoring (similarity * 0.6 + recency * 0.2 + access_frequency * 0.2)
 - Lightweight relationship extraction (entity_a, relationship, entity_b join table)
 - Dashboard (Next.js or SvelteKit, memory stats + entity graph)
 - Extension model (typed tables referencing open_brain)
+
+See yonasol-ops/ARCHITECTURE.md § Action Plan for the full prioritized backlog.

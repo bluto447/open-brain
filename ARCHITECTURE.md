@@ -149,9 +149,12 @@ Merge: Agent calls merge_memories(ids[], merged_content)
 |---|---|
 | supabase-setup.sql | Original schema (reference, don't modify) |
 | migrations/v1.5-memory-intelligence.sql | v1.5 ALTER statements, new RPC functions |
-| edge-functions/ingest/index.ts | Ingestion pipeline (embed, extract, classify, dedup, store) |
-| mcp-config/custom-mcp-server/index.js | MCP server (7 tools after v1.5) |
-| scripts/backfill-memory-types.js | One-time script to classify 235 existing memories |
+| migrations/v1.5.1-doc-sync-helpers.sql | list_public_rpcs() + list_table_info() helper RPCs |
+| supabase/functions/hyper-worker/index.ts | Ingestion pipeline (embed, extract, classify, dedup, store) |
+| supabase/functions/arch-snapshot/index.ts | GET endpoint returning live Data Layer markdown |
+| mcp-config/custom-mcp-server/index.js | MCP server (8 tools after v1.5) |
+| scripts/backfill-memory-types.js | One-time script to classify existing memories |
+| ship-checklist.md | Cross-repo doc update checklist for releases |
 | sync/notion-sync.js | Notion → Open Brain sync |
 
 ## APIs and External Services
@@ -186,6 +189,7 @@ Merge: Agent calls merge_memories(ids[], merged_content)
 
 ```bash
 supabase functions deploy hyper-worker --project-ref lolivmsgmwmeqqqpjszo
+supabase functions deploy arch-snapshot --project-ref lolivmsgmwmeqqqpjszo
 ```
 
 ### Database Migration

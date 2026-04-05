@@ -44,11 +44,15 @@ open-brain/
 ├── SPRINT_STATUS.md
 ├── TECH_STACK.md
 ├── supabase-setup.sql                 ← Original schema (reference only, don't modify)
+├── ship-checklist.md                  ← Cross-repo doc update checklist
 ├── migrations/
 │   ├── v1.5-memory-intelligence.sql       # v1.5 schema: types, temporal, mutation RPCs
-│   └── v1.5.1-contradiction-detection.sql # find_contradictions() RPC
+│   ├── v1.5.1-contradiction-detection.sql # find_contradictions() RPC
+│   └── v1.5.1-doc-sync-helpers.sql        # list_public_rpcs() + list_table_info()
 ├── supabase/
-│   └── functions/hyper-worker/index.ts    # Edge Function — ingest + classify + dedup
+│   └── functions/
+│       ├── hyper-worker/index.ts          # Edge Function — ingest + classify + dedup
+│       └── arch-snapshot/index.ts         # Edge Function — live Data Layer markdown
 ├── mcp-config/
 │   ├── custom-mcp-server/
 │   │   ├── index.js                       # Repo copy of MCP server (5 tools, reference)
@@ -115,6 +119,13 @@ See SPRINT_STATUS.md for current sprint, tickets, and progress.
 - Test Edge Function via curl POST to the function URL
 - Test MCP tools via Claude Desktop (configure using mcp-config/)
 - Validate dedup threshold with real memories (check for false positives at 0.92)
+
+## Shipping
+
+Before pushing a release that changes schema, RPCs, MCP tools, or Edge Functions, run through `ship-checklist.md`. Key items:
+- Run `arch-snapshot` Edge Function for live Data Layer markdown
+- Update cross-repo references (yonasol-ops/ARCHITECTURE.md, README, setup-guide)
+- Log the release to Open Brain via `add_memory`
 
 ## Resources
 

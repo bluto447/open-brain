@@ -1,0 +1,12 @@
+{
+  "name": "notebooklm",
+  "version": "0.1.0",
+  "description": "NotebookLM integration for Claude — create notebooks, generate audio briefings, query research, and sync with Open Brain",
+  "author": {
+    "name": "Brian Snipes"
+  },
+  "repository": "https://github.com/bluto447/open-brain",
+  "license": "MIT",
+  "keywords": ["notebooklm", "google", "audio", "research", "open-brain", "knowledge-management"],
+  "mcpServers": "./.mcp.json"
+}

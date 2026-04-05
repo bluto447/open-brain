@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "notebooklm-mcp": {
+      "command": "C:/Users/brian/AppData/Roaming/Python/Python312/Scripts/notebooklm-mcp.exe",
+      "type": "stdio"
+    }
+  }
+}

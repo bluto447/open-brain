@@ -41,6 +41,8 @@ Open Brain is a personal AI-readable memory and context layer. Supabase PostgreS
 open-brain/
 ├── CLAUDE.md                          ← You are here
 ├── ARCHITECTURE.md
+├── BACKLOG.md                         ← Prioritized v2.0 feature backlog
+├── ROADMAP.md                         ← v2.0 milestones + sprint plan
 ├── SPRINT_STATUS.md
 ├── TECH_STACK.md
 ├── supabase-setup.sql                 ← Original schema (reference only, don't modify)

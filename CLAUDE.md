@@ -1,10 +1,14 @@
 # Open Brain — Claude Code Project Instructions
 
+> **System architecture:** see [yonasol-ops/ARCHITECTURE.md](https://github.com/bluto447/yonasol-ops/blob/main/ARCHITECTURE.md)
+
 ## Overview
 
 Open Brain is a personal AI-readable memory and context layer. Supabase PostgreSQL with pgvector for vector embeddings, Edge Functions for ingestion, MCP server for Claude Desktop integration. This is the memory infrastructure for the Yonasol portfolio.
 
-**Current milestone: v1.5 (Memory Intelligence)** — Adding memory mutation, temporal validity, memory typing, and expanded MCP tools.
+**Current version: v1.5 (Memory Intelligence)** — Shipped April 3, 2026. Memory mutation, temporal validity, type classification, dedup, contradiction detection, 8 MCP tools.
+
+**Next milestone: v2.0** — Composite scoring, relationship extraction (entity graph), dashboard.
 
 ## Stack
 
@@ -16,18 +20,17 @@ Open Brain is a personal AI-readable memory and context layer. Supabase PostgreS
 - **Sync:** Node.js (sync/notion-sync.js)
 - **Vector Index:** HNSW (cosine similarity)
 
-## Goals
+## Goals (v2.0)
 
-1. **#1 PRIORITY: Memory mutation.** Add update, deprecate, and merge operations so the brain resolves contradictions instead of accumulating them.
-2. Add temporal validity columns (valid_from, valid_to) so we know when facts were true.
-3. Add memory_type classification on ingest so retrieval can be type-aware.
-4. Expand MCP server with 3 new tools (update_memory, deprecate_memory, merge_memories).
-5. Backfill existing 235 memories with type classifications.
+1. Composite scoring: similarity * 0.6 + recency * 0.2 + access_frequency * 0.2
+2. Lightweight relationship extraction (entity_a, relationship, entity_b join table)
+3. Dashboard (Next.js or SvelteKit — memory stats + entity graph visualization)
+4. Extension model (typed tables referencing open_brain)
 
 ## Code Style
 
 - **Edge Functions:** TypeScript, Deno runtime, no Node.js APIs
-- **MCP Server:** JavaScript (CommonJS), Node.js runtime
+- **MCP Server:** JavaScript (ESM), Node.js runtime — live server at `C:\Users\brian\projects\open-brain-mcp\server.js`
 - **SQL:** PostgreSQL 17 syntax, use RPC functions for anything called from MCP
 - **Naming:** snake_case for SQL (tables, columns, functions), camelCase for JS/TS variables and functions
 - **Formatting:** 2-space indentation, single quotes in JS/TS, no semicolons in TS Edge Functions, semicolons in JS MCP server
@@ -42,20 +45,18 @@ open-brain/
 ├── TECH_STACK.md
 ├── supabase-setup.sql                 ← Original schema (reference only, don't modify)
 ├── migrations/
-│   └── v1.5-memory-intelligence.sql   ← NEW: v1.5 schema changes
-├── edge-functions/
-│   ├── ingest/
-│   │   └── index.ts                   ← MODIFY: add type classification + dedup
-│   └── README.md
+│   ├── v1.5-memory-intelligence.sql       # v1.5 schema: types, temporal, mutation RPCs
+│   └── v1.5.1-contradiction-detection.sql # find_contradictions() RPC
+├── supabase/
+│   └── functions/hyper-worker/index.ts    # Edge Function — ingest + classify + dedup
 ├── mcp-config/
-│   ├── claude-desktop-config.json
-│   ├── custom-mcp-config.json
 │   ├── custom-mcp-server/
-│   │   ├── index.js                   ← MODIFY: add 3 new tools
+│   │   ├── index.js                       # Repo copy of MCP server (5 tools, reference)
 │   │   └── package.json
 │   └── setup-guide.md
 ├── scripts/
-│   └── backfill-memory-types.js       ← NEW: classify existing memories
+│   ├── backfill-memory-types.js           # Classify existing memories via gpt-4o-mini
+│   └── package.json
 ├── sync/
 │   ├── notion-sync.js
 │   ├── package.json
@@ -75,11 +76,12 @@ open-brain/
 ## Do NOT
 
 - Do NOT modify supabase-setup.sql (it's the original schema for reference)
-- Do NOT change the existing 4 MCP tools' interfaces (add_memory, semantic_search, search_by_tag, list_recent)
+- Do NOT change the existing 8 MCP tools' interfaces without good reason
 - Do NOT hard-delete any data. Deprecate with valid_to, never DROP or DELETE existing memories.
 - Do NOT change the Edge Function slug (hyper-worker)
 - Do NOT add new npm dependencies to the MCP server unless absolutely necessary
-- Do NOT create a separate database or table for v1.5 features — everything extends open_brain
+- Do NOT create separate databases or tables — everything extends open_brain
+- Do NOT edit the repo copy of the MCP server (mcp-config/custom-mcp-server/index.js) expecting it to go live — the live server is at open-brain-mcp/server.js (outside this repo)
 
 ## Key Technical Notes
 

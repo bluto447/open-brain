@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check server.js)",
+      "mcp__open-brain__update_memory",
+      "mcp__open-brain__deprecate_memory",
+      "mcp__9ec955f4-39d2-4fa0-a99e-69e72653b225__deploy_edge_function",
+      "Bash(npm install:*)",
+      "Bash(node backfill-memory-types.js --dry-run --ids 1,2,17)",
+      "Bash(node backfill-memory-types.js)",
+      "Skill(review)",
+      "Skill(review:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(zip -r ../notebooklm.plugin . -x \".*\")",
+      "Bash(powershell -Command \"Compress-Archive -Path ''.claude-plugin'',''skills'',''README.md'',''CONNECTORS.md'',''.mcp.json'' -DestinationPath ''../notebooklm.plugin'' -Force\")",
+      "Bash(powershell -Command \"Compress-Archive -Path ''.claude-plugin'',''skills'',''README.md'',''CONNECTORS.md'',''.mcp.json'' -DestinationPath ''../notebooklm.zip'' -Force; Rename-Item ''../notebooklm.zip'' ''../notebooklm.plugin''\")",
+      "Bash(powershell -Command \"Compress-Archive -Path ''notebooklm/.claude-plugin'',''notebooklm/skills'',''notebooklm/README.md'',''notebooklm/CONNECTORS.md'',''notebooklm/.mcp.json'' -DestinationPath ''notebooklm.zip'' -Force\")",
+      "Bash(mv notebooklm.zip notebooklm.plugin)",
+      "Bash(mkdir -p \"C:/Users/brian/.claude/plugins/cache/local/notebooklm/0.1.0\")",
+      "Bash(cp -r C:/Users/brian/projects/open-brain/notebooklm/.claude-plugin C:/Users/brian/projects/open-brain/notebooklm/skills C:/Users/brian/projects/open-brain/notebooklm/README.md C:/Users/brian/projects/open-brain/notebooklm/CONNECTORS.md C:/Users/brian/projects/open-brain/notebooklm/.mcp.json \"C:/Users/brian/.claude/plugins/cache/local/notebooklm/0.1.0/\")",
+      "Bash(pip --version)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(timeout 10 \"C:/Users/brian/AppData/Roaming/Python/Python312/Scripts/notebooklm-mcp.exe\")",
+      "Bash(python3 -c:*)",
+      "Bash(python -c \"print\\(''hello''\\)\")",
+      "Bash(python -c \":*)"
+    ]
+  }
+}

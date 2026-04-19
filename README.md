@@ -44,9 +44,18 @@ Open Brain is a self-hosted knowledge graph that stores your memories, notes, an
 | AI bridge | MCP server for Claude Desktop |
 | Vector index | HNSW (cosine similarity) |
 
-## v1.5 — Memory Intelligence (current)
+## v2.0 — Composite Scoring (current)
 
-v1.5 adds memory mutation, temporal validity, and type-aware retrieval:
+v2.0 adds blended retrieval ranking so the most *relevant* memories surface — not just the most similar:
+
+- **Composite scoring** — Retrieval blends three signals: `similarity * 0.60 + recency * 0.20 + frequency * 0.20`
+- **Per-type recency decay** — Exponential half-life tuned by memory type: episodic 30d, procedural 90d, semantic 180d, preference/decision 365d
+- **Frequency signal** — Log-scaled access count with a 0.3 floor so un-accessed memories aren't buried
+- **Top-3 access bump** — Each retrieval increments `access_count` and `last_accessed_at` for the top 3 results only (reduces rich-get-richer)
+- **Tunable weights** — `ob_scoring_config` singleton table lets you adjust weights and half-lives without code changes
+- **Backward compatible** — `match_brain` gains a `p_use_composite` flag (default false). MCP `semantic_search` uses composite by default with a `use_composite` toggle
+
+### v1.5 features (preserved)
 
 - **Memory types** — Every memory is classified as `episodic`, `semantic`, `procedural`, `preference`, or `decision`
 - **Temporal validity** — `valid_from` and `valid_to` columns track when facts were true
@@ -58,7 +67,7 @@ v1.5 adds memory mutation, temporal validity, and type-aware retrieval:
 
 | Tool | Description |
 |------|-------------|
-| `semantic_search` | Natural language search using vector similarity |
+| `semantic_search` | Blended retrieval using composite scoring (v2.0). Params: `use_composite` (default true), `filter_type`, `only_valid`. Falls back to pure cosine similarity when `use_composite=false` |
 | `add_memory` | Store a new memory (auto-embeds + extracts metadata) |
 | `list_recent` | Get the most recent memories |
 | `search_by_tag` | Find memories by tag |
@@ -101,14 +110,15 @@ See [`mcp-config/setup-guide.md`](mcp-config/setup-guide.md) for MCP server setu
 open-brain/
 ├── supabase-setup.sql              # Original schema (reference only)
 ├── migrations/
-│   ├── v1.5-memory-intelligence.sql    # v1.5 schema: types, temporal, mutation RPCs
-│   └── v1.5.1-contradiction-detection.sql  # find_contradictions() RPC
+│   ├── v1.5-memory-intelligence.sql       # v1.5 schema: types, temporal, mutation RPCs
+│   ├── v1.5.1-contradiction-detection.sql # find_contradictions() RPC
+│   └── v2.0-composite-scoring.sql         # v2.0: composite_search, ob_scoring_config, match_brain v2
 ├── edge-functions/
 │   └── ingest/
 │       └── index.ts                # Deno Edge Function — ingest + classify + dedup
 ├── mcp-config/
 │   ├── custom-mcp-server/
-│   │   ├── index.js                # MCP server (8 tools)
+│   │   ├── index.js                # MCP server reference copy (8 tools)
 │   │   └── package.json
 │   └── setup-guide.md              # Windows 11 setup guide
 ├── scripts/
@@ -174,7 +184,9 @@ open-brain/
 
 | Function | Description |
 |---|---|
-| `match_brain(query_embedding, match_threshold, match_count, filter_type, only_valid)` | Semantic similarity search with optional type filter |
+| `composite_search(query_embedding, match_count, match_threshold, p_filter_type, p_only_valid, p_weights_override)` | Blended ranking: similarity + recency decay + frequency. Bumps top-3 access stats per call (v2.0) |
+| `match_brain(query_embedding, match_threshold, match_count, filter_source, p_filter_type, p_only_valid, p_use_composite)` | Semantic search — pure cosine (default) or composite via flag (v2.0) |
+| `get_scoring_config()` | Returns the `ob_scoring_config` singleton row (v2.0) |
 | `search_by_tag(tag_key, tag_value, result_limit)` | Find memories by metadata tag |
 | `list_recent(count, filter_source)` | Get most recent memories |
 | `add_memory(p_content, p_metadata, p_source, p_embedding)` | Insert a memory row |
@@ -191,7 +203,7 @@ open-brain/
 - [x] MCP server for Claude Desktop (4 tools)
 - [x] **v1.5 Memory Intelligence** — mutation tools, temporal validity, type classification, dedup, contradiction detection (8 tools)
 - [x] Memory type backfill (280 memories classified)
-- [ ] v2.0: Composite scoring (similarity + recency + access frequency)
+- [x] **v2.0 Sprint 1: Composite scoring** — blended retrieval with per-type recency decay + log-scaled frequency (deployed April 2026)
 - [ ] v2.0: Relationship extraction (entity graph)
 - [ ] v2.0: Dashboard (memory stats + entity graph visualization)
 - [ ] Quick Capture templates (Slack webhook, iOS shortcut)

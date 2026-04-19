@@ -126,7 +126,7 @@ The custom server exposes eight dedicated tools:
 
 | Tool | What it does |
 |---|---|
-| `semantic_search` | Embeds your query with OpenAI and finds semantically similar memories |
+| `semantic_search` | Blended retrieval using composite scoring (v2.0). Supports `use_composite` (default true), `filter_type` (episodic/semantic/procedural/preference/decision), and `only_valid` (default true). Falls back to pure cosine similarity when `use_composite=false`. Returns score breakdown per result when composite is active |
 | `list_recent` | Returns the N most recently added memories |
 | `add_memory` | Ingests new content with auto-embedding and metadata extraction |
 | `search_by_tag` | Returns all memories with a specific tag |
@@ -233,7 +233,7 @@ Add a memory: "Reviewed Q1 roadmap priorities with the team. Top focus is retent
 Search my brain for entries tagged "product-strategy"
 ```
 
-> Note: `Search my brain for thoughts about product strategy` uses semantic vector search and requires your `match_brain` RPC function to exist in Supabase. If it's not yet deployed, use the SQL queries instead.
+> Note: `Search my brain for thoughts about product strategy` uses semantic vector search and requires the `composite_search` (v2.0) or `match_brain` RPC function to exist in Supabase. If neither is deployed yet, use the SQL queries instead.
 
 ---
 

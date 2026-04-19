@@ -182,7 +182,7 @@ BEGIN
     WHERE ob.embedding IS NOT NULL
       AND (1 - (ob.embedding <=> query_embedding)) >= match_threshold
       AND (p_filter_type IS NULL OR ob.memory_type = p_filter_type)
-      AND (p_only_valid = false OR ob.valid_to IS NULL)
+      AND (p_only_valid = false OR ob.valid_to IS NULL OR ob.valid_to > now())
   ),
   scored AS (
     SELECT
@@ -269,6 +269,8 @@ BEGIN
       c.memory_type,
       c.valid_from,
       c.valid_to
+    -- NOTE: filter_source is not forwarded — composite_search has no source filter.
+    -- Callers needing source filtering should use p_use_composite=false.
     FROM public.composite_search(
       query_embedding, match_count, match_threshold,
       p_filter_type, p_only_valid, NULL
@@ -294,7 +296,7 @@ BEGIN
     AND (1 - (ob.embedding <=> query_embedding)) >= match_threshold
     AND (filter_source IS NULL OR ob.source = filter_source)
     AND (p_filter_type IS NULL OR ob.memory_type = p_filter_type)
-    AND (p_only_valid = false OR ob.valid_to IS NULL)
+    AND (p_only_valid = false OR ob.valid_to IS NULL OR ob.valid_to > now())
   ORDER BY ob.embedding <=> query_embedding
   LIMIT match_count;
 END;

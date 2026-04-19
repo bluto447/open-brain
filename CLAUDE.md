@@ -7,9 +7,9 @@
 
 Open Brain is a personal AI-readable memory and context layer. Supabase PostgreSQL with pgvector for vector embeddings, Edge Functions for ingestion, MCP server for Claude Desktop integration. This is the memory infrastructure for the Yonasol portfolio.
 
-**Current version: v1.5 (Memory Intelligence)** — Shipped April 3, 2026. Memory mutation, temporal validity, type classification, dedup, contradiction detection, 8 MCP tools.
+**Current version: v2.0 Sprint 1 (Composite Scoring)** — Shipped April 18, 2026. Composite scoring with per-type recency decay, access frequency tracking, and configurable weights. Builds on v1.5 (Memory Intelligence, April 3 2026).
 
-**Next milestone: v2.0** — Composite scoring, relationship extraction (entity graph), dashboard.
+**Next milestone: v2.0 Sprint 2** — Relationship extraction (entity graph), dashboard.
 
 ## Stack
 
@@ -23,7 +23,7 @@ Open Brain is a personal AI-readable memory and context layer. Supabase PostgreS
 
 ## Goals (v2.0)
 
-1. Composite scoring: similarity * 0.6 + recency * 0.2 + access_frequency * 0.2
+1. ~~Composite scoring~~ **DONE** (v2.0 Sprint 1) — `composite_search` RPC with per-type recency decay, access frequency, configurable weights via `ob_scoring_config`
 2. Lightweight relationship extraction (entity_a, relationship, entity_b join table)
 3. Dashboard (Next.js or SvelteKit — memory stats + entity graph visualization)
 4. Extension model (typed tables referencing open_brain)
@@ -49,7 +49,8 @@ open-brain/
 ├── migrations/
 │   ├── v1.5-memory-intelligence.sql       # v1.5 schema: types, temporal, mutation RPCs
 │   ├── v1.5.1-contradiction-detection.sql # find_contradictions() RPC
-│   └── v1.5.1-doc-sync-helpers.sql        # list_public_rpcs() + list_table_info()
+│   ├── v1.5.1-doc-sync-helpers.sql        # list_public_rpcs() + list_table_info()
+│   └── v2.0-composite-scoring.sql         # ob_scoring_config table + composite_search RPC
 ├── supabase/
 │   └── functions/
 │       ├── hyper-worker/index.ts          # Edge Function — ingest + classify + dedup
@@ -115,6 +116,7 @@ open-brain/
 - The metadata column is JSONB and already contains: tags (array), people (array), topics (array), sentiment, action_items
 - Embeddings are 1536 dimensions (text-embedding-3-small)
 - The HNSW index uses cosine similarity
+- `ob_scoring_config` table holds per-memory-type scoring weights (similarity, recency, access frequency) and recency half-life. `composite_search` RPC is the primary retrieval path, combining vector similarity with recency decay and access frequency
 
 ## Sprint Context
 

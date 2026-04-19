@@ -23,6 +23,8 @@ Better retrieval by blending similarity, recency, and usage signals instead of p
 | OB-104 | Update MCP `semantic_search` tool to pass composite flag | P0 | S | Add optional `use_composite` param. Default true for MCP callers so Claude gets best results by default. |
 | OB-105 | Benchmark composite vs pure similarity on 20 test queries | P1 | M | Compare top-5 results. Document precision/relevance improvements. Tune weights if needed. |
 | OB-106 | Add score_breakdown to search results | P1 | S | Return `{ similarity, recency_score, frequency_score, composite }` so callers can see why a result ranked where it did. |
+| OB-107 | Add `last_accessed_at` column + backfill + index | P0 | S | Prereq for recency scoring. Backfilled from `created_at`. Shipped in v2.0-composite-scoring.sql alongside OB-100. |
+| OB-109 | Admin RPC `set_scoring_weights(w_sim, w_rec, w_freq)` | P2 | S | Validate sum-to-1, update ob_scoring_config row. Avoids raw SQL when tuning weights. |
 
 ---
 
@@ -85,6 +87,7 @@ Typed tables that reference open_brain for domain-specific data (sessions, proje
 | OB-503 | Add `memory_source_url` column to open_brain | P2 | S | Store the original URL (Notion page, Slack thread) for traceability. |
 | OB-504 | Notion sync: handle pagination for large databases | P1 | M | Current sync doesn't paginate. Will break if Notion DB exceeds 100 pages. |
 | OB-505 | MCP server health check endpoint | P2 | S | Simple `/health` that confirms Supabase connectivity. |
+| OB-108 | Sync `mcp-config/custom-mcp-server/index.js` with live server | P2 | S | Repo reference copy drifted behind the live server at `open-brain-mcp/server.js` during v2.0 work. Docs consistency only, not user-facing. |
 
 ---
 

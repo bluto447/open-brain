@@ -1,5 +1,6 @@
 # Open Brain — Claude Code Project Instructions
 
+> **Public repo.** Do not commit secrets, project IDs, or internal planning docs. See .gitignore for excluded files.
 > **System architecture:** see [yonasol-ops/ARCHITECTURE.md](https://github.com/bluto447/yonasol-ops/blob/main/ARCHITECTURE.md)
 
 ## Overview
@@ -12,7 +13,7 @@ Open Brain is a personal AI-readable memory and context layer. Supabase PostgreS
 
 ## Stack
 
-- **Database:** Supabase PostgreSQL 17 + pgvector (project: lolivmsgmwmeqqqpjszo)
+- **Database:** Supabase PostgreSQL 17 + pgvector
 - **Embeddings:** OpenAI text-embedding-3-small (1536 dims)
 - **Metadata extraction:** OpenAI gpt-4o-mini
 - **Edge Functions:** Deno/TypeScript (Supabase Edge Functions)
@@ -30,7 +31,7 @@ Open Brain is a personal AI-readable memory and context layer. Supabase PostgreS
 ## Code Style
 
 - **Edge Functions:** TypeScript, Deno runtime, no Node.js APIs
-- **MCP Server:** JavaScript (ESM), Node.js runtime — live server at `C:\Users\brian\projects\open-brain-mcp\server.js`
+- **MCP Server:** JavaScript (ESM), Node.js runtime
 - **SQL:** PostgreSQL 17 syntax, use RPC functions for anything called from MCP
 - **Naming:** snake_case for SQL (tables, columns, functions), camelCase for JS/TS variables and functions
 - **Formatting:** 2-space indentation, single quotes in JS/TS, no semicolons in TS Edge Functions, semicolons in JS MCP server
@@ -39,11 +40,9 @@ Open Brain is a personal AI-readable memory and context layer. Supabase PostgreS
 
 ```
 open-brain/
-├── CLAUDE.md                          ← You are here
+├── CLAUDE.md                          ← You are here (gitignored, local only)
+├── CONTRIBUTING.md                    ← Public contributor guide
 ├── ARCHITECTURE.md
-├── BACKLOG.md                         ← Prioritized v2.0 feature backlog
-├── ROADMAP.md                         ← v2.0 milestones + sprint plan
-├── SPRINT_STATUS.md
 ├── TECH_STACK.md
 ├── supabase-setup.sql                 ← Original schema (reference only, don't modify)
 ├── ship-checklist.md                  ← Cross-repo doc update checklist
@@ -57,23 +56,13 @@ open-brain/
 │       └── arch-snapshot/index.ts         # Edge Function — live Data Layer markdown
 ├── mcp-config/
 │   ├── custom-mcp-server/
-│   │   ├── index.js                       # Repo copy of MCP server (5 tools, reference)
+│   │   ├── index.js                       # Repo copy of MCP server (reference)
 │   │   └── package.json
 │   └── setup-guide.md
 ├── scripts/
 │   ├── backfill-memory-types.js           # Classify existing memories via gpt-4o-mini
 │   └── package.json
 ├── notebooklm/                            # Cowork plugin — NotebookLM integration
-│   ├── .claude-plugin/plugin.json         # Plugin manifest
-│   ├── .mcp.json                          # MCP server config (notebooklm-mcp)
-│   ├── CONNECTORS.md                      # Open Brain MCP dependency docs
-│   ├── README.md
-│   └── skills/                            # 5 skills: create-notebook, audio-briefing,
-│       ├── create-notebook/               #   research-query, notebook-pipeline,
-│       ├── audio-briefing/                #   open-brain-sync
-│       ├── research-query/
-│       ├── notebook-pipeline/
-│       └── open-brain-sync/
 ├── sync/
 │   ├── notion-sync.js
 │   ├── package.json
@@ -83,12 +72,30 @@ open-brain/
 └── README.md
 ```
 
+### Gitignored (local only, not in repo)
+
+- `CLAUDE.md` — this file
+- `SPRINT_STATUS.md`, `BACKLOG.md`, `ROADMAP.md` — sprint planning
+- `TASK_BRIEF_*.md` — task briefs
+- `open-brain-v1.5-prd.md` — PRD
+- `open-brain-competitive-analysis.md` — competitive analysis
+- `scripts/.env` — credentials
+- `scripts/node_modules/` — dependencies
+
+## Public Repo Rules
+
+- **Never commit secrets.** All credentials live in .env files (gitignored). Use YOUR_PROJECT_REF as placeholder in docs.
+- **No hardcoded Supabase project IDs** in committed files. Use placeholders or env vars.
+- **Internal planning docs stay gitignored.** Sprint status, backlogs, PRDs, task briefs, competitive analysis are local only.
+- **CLAUDE.md is gitignored.** This file is for Claude Code sessions only, not public.
+
 ## Git Rules
 
 - Commit to main branch
 - Never auto-push. Brian pushes manually.
 - Commit messages: imperative mood, short first line, body if needed
 - Example: "Add memory mutation RPC functions"
+- Before committing: `git diff --cached` to verify no secrets or project IDs leak
 
 ## Do NOT
 
@@ -98,12 +105,10 @@ open-brain/
 - Do NOT change the Edge Function slug (hyper-worker)
 - Do NOT add new npm dependencies to the MCP server unless absolutely necessary
 - Do NOT create separate databases or tables — everything extends open_brain
-- Do NOT edit the repo copy of the MCP server (mcp-config/custom-mcp-server/index.js) expecting it to go live — the live server is at open-brain-mcp/server.js (outside this repo)
+- Do NOT commit .env files, API keys, or Supabase project IDs
 
 ## Key Technical Notes
 
-- The Supabase project ID is lolivmsgmwmeqqqpjszo
-- Edge Function URL: https://lolivmsgmwmeqqqpjszo.supabase.co/functions/v1/hyper-worker
 - The Edge Function uses OPENAI_API_KEY stored as a Supabase secret
 - JWT verification is ON for the Edge Function
 - RLS is enabled on open_brain with service_role and authenticated having full access
@@ -113,7 +118,7 @@ open-brain/
 
 ## Sprint Context
 
-See SPRINT_STATUS.md for current sprint, tickets, and progress.
+See SPRINT_STATUS.md (local, gitignored) for current sprint, tickets, and progress.
 
 ## Testing
 
@@ -128,11 +133,11 @@ Before pushing a release that changes schema, RPCs, MCP tools, or Edge Functions
 - Run `arch-snapshot` Edge Function for live Data Layer markdown
 - Update cross-repo references (yonasol-ops/ARCHITECTURE.md, README, setup-guide)
 - Log the release to Open Brain via `add_memory`
+- **Verify no secrets or project IDs in the diff** before pushing
 
 ## Resources
 
-- [Supabase Dashboard](https://supabase.com/dashboard/project/lolivmsgmwmeqqqpjszo)
 - [pgvector docs](https://github.com/pgvector/pgvector)
 - [MCP Specification](https://modelcontextprotocol.io/)
 - [OpenAI Embeddings API](https://platform.openai.com/docs/guides/embeddings)
-- Competitive analysis: see open-brain-competitive-analysis.md
+- Competitive analysis: see open-brain-competitive-analysis.md (local, gitignored)

@@ -47,18 +47,21 @@
 
 ---
 
-## Sprint 4 — Composite Scoring (Not Started)
+## Sprint 4 — Composite Scoring (Complete)
 **Goal:** Replace pure cosine similarity with composite scoring so every retrieval gets smarter
+
+> **Deployed April 18, 2026.** Migration applied to Supabase. All smoke tests passed. MCP server patched (restart required for Claude Desktop pickup).
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| OB-100 | Design composite score formula + weighting config | Pending | similarity*0.6 + recency*0.2 + access_frequency*0.2. Tunable weights |
-| OB-101 | Create composite_search RPC function | Pending | Blended score, accepts optional weight overrides |
-| OB-102 | Update match_brain to accept use_composite flag | Pending | Backward-compatible. Default false |
-| OB-103 | Normalize access_count + recency into 0-1 range | Pending | Log-scale for access, exponential decay for recency |
-| OB-104 | Update MCP semantic_search tool to pass composite flag | Pending | Default true for MCP callers |
-| OB-105 | Benchmark composite vs pure similarity on 20 test queries | Pending | Compare top-5 results, tune weights |
-| OB-106 | Add score_breakdown to search results | Pending | Return component scores alongside composite |
+| OB-100 | Design composite score formula + weighting config | Done | similarity*0.6 + recency*0.2 + access_frequency*0.2. Per-type half-lives (episodic 30d, procedural 90d, semantic 180d, preference/decision 365d). Stored in ob_scoring_config singleton. |
+| OB-101 | Create composite_search RPC function | Done | VOLATILE (bumps top-3 access_count). Accepts p_weights_override jsonb. Fixed ambiguous `id` column reference during deploy. |
+| OB-102 | Update match_brain to accept use_composite flag | Done | 7th param `p_use_composite boolean DEFAULT false`. Delegates to composite_search when true, projects composite_score as similarity column for v1.5 shape. |
+| OB-103 | Normalize access_count + recency into 0-1 range | Done | Frequency: floor + (1-floor) * ln(1+n)/ln(1+sat), floor=0.3, sat=50. Recency: exp(-ln(2)*age/halflife), age from GREATEST(last_accessed_at, valid_from). |
+| OB-104 | Update MCP semantic_search tool to pass composite flag | Done | Added use_composite (default true), filter_type (enum), only_valid (default true) to tool schema. Patched open-brain-mcp/server.js. Bumped to v2.0.0. |
+| OB-105 | Benchmark composite vs pure similarity on 20 test queries | Pending | P1, deferred. Run after MCP restart to test with real queries. |
+| OB-106 | Add score_breakdown to search results | Done | MCP result format now includes `Score: sim=X rec=Y freq=Z → composite=W` line per result when use_composite=true. |
+| OB-107 | Add `last_accessed_at` column + backfill + index | Done | Shipped in the same migration. 1,086 rows backfilled from created_at, default now(), DESC index. |
 
 ---
 

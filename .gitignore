@@ -30,3 +30,11 @@ build/
 
 # Internal docs (not for public repo)
 saas-viability.md
+CLAUDE.md
+SPRINT_STATUS.md
+BACKLOG.md
+ROADMAP.md
+TASK_BRIEF_*.md
+open-brain-v1.5-prd.md
+open-brain-competitive-analysis.md
+.claude/settings.local.json

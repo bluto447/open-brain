@@ -72,6 +72,36 @@
 └────────────────────────────────────────────────────────┘
 ```
 
+## v2.0 Entity Graph (relationship extraction)
+
+Derived layer on top of `open_brain`. Each memory's metadata `people` / `topics` / `tags`
+are resolved into entities and connected by co-occurrence — **no extra LLM call**.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ entities                  memory_entities            entity_edges      │
+│ ──────────                ───────────────            ────────────       │
+│ id bigint PK              memory_id ─► open_brain    source_entity_id   │
+│ name / normalized_name    entity_id ─► entities      target_entity_id   │
+│ entity_type               role (people|topics|tags)  relation='co_occurs'
+│  (person|project|topic|   weight                     weight / evidence  │
+│   tool|org)               PK(memory_id,entity_id)     evidence_memory_ids│
+│ project_slug (hint)                                  UNIQUE(src,tgt,rel) │
+│ embedding (reserved)      entity_aliases: manual alias → canonical merge │
+│ mention_count             UNIQUE(normalized_name, entity_type)          │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- **Write path**: `upsert_memory_entities(p_memory_id, p_people, p_topics, p_tags)` —
+  resolves/dedups entities (via `ob_normalize_entity`), links them, and upserts a
+  co-occurrence edge per unordered pair. Called from `hyper-worker` Step 6 (error-isolated)
+  and from the backfill — one shared path, zero drift. **service_role only.**
+- **Backfill / rebuild**: `rebuild_entity_graph()` — idempotent full replay from
+  `open_brain.metadata`. Keeps entity rows stable (aliases survive). **service_role only.**
+- **Read path** (service_role + authenticated): `get_entity`, `get_entity_neighbors`
+  (`p_min_weight` filters graph density), `get_memories_for_entity`, `list_entities`.
+- **v2.1 hook**: LLM-typed relations land in `entity_edges` via `relation <> 'co_occurs'` — no schema change.
+
 ## Data Flow
 
 ### Ingest Flow (updated for v1.5)
@@ -95,8 +125,12 @@ Text arrives (POST /functions/v1/hyper-worker)
     │   └─ Duplicate found → Return 200 with match ID + similarity score
     │      (client decides: update existing or re-call with force_insert=true)
     │
-    └─► Store in open_brain table
-        Sets: valid_from = now(), valid_to = NULL, memory_type = classified
+    ├─► Store in open_brain table
+    │   Sets: valid_from = now(), valid_to = NULL, memory_type = classified
+    │
+    └─► Upsert entity graph (Step 6, NEW v2.0)         ◄── NEW
+        upsert_memory_entities(id, people, topics, tags)
+        Error-isolated: a graph failure NEVER fails the memory insert
 ```
 
 ### Retrieval Flow (updated for v1.5)
@@ -149,6 +183,9 @@ Merge: Agent calls merge_memories(ids[], merged_content)
 |---|---|
 | supabase-setup.sql | Original schema (reference, don't modify) |
 | migrations/v1.5-memory-intelligence.sql | v1.5 ALTER statements, new RPC functions |
+| migrations/v2.0-composite-scoring.sql | v2.0 composite scoring (blended ranking + config) |
+| migrations/v2.0-entity-graph.sql | v2.0 entity graph: entities/edges tables + RPCs |
+| scripts/backfill-entity-graph.js | Rebuild the entity graph from existing metadata |
 | migrations/v1.5.1-doc-sync-helpers.sql | list_public_rpcs() + list_table_info() helper RPCs |
 | supabase/functions/hyper-worker/index.ts | Ingestion pipeline (embed, extract, classify, dedup, store) |
 | supabase/functions/arch-snapshot/index.ts | GET endpoint returning live Data Layer markdown |

@@ -384,6 +384,27 @@ Deno.serve(async (req: Request) => {
   }
 
   // ---------------------------------------------------------------------------
+  // Step 6: Entity-graph upsert (v2.0 — non-fatal, must NEVER fail the insert)
+  // ---------------------------------------------------------------------------
+  // Reuses the people/topics/tags already extracted above — no extra LLM call.
+  // The memory row is the source of truth and the graph is fully rebuildable via
+  // rebuild_entity_graph(), so any failure here is logged and swallowed.
+  try {
+    const { error: graphErr } = await supabase.rpc("upsert_memory_entities", {
+      p_memory_id: Number(data.id), // column is bigint; cast explicitly, don't rely on PostgREST coercion
+      p_people: metadata.people,
+      p_topics: metadata.topics,
+      p_tags: metadata.tags,
+    });
+    if (graphErr) {
+      console.error("entity-graph upsert failed (non-fatal):", graphErr.message);
+    }
+  } catch (graphErr) {
+    const message = graphErr instanceof Error ? graphErr.message : String(graphErr);
+    console.error("entity-graph upsert threw (non-fatal):", message);
+  }
+
+  // ---------------------------------------------------------------------------
   // Success — return the inserted row
   // ---------------------------------------------------------------------------
   return corsResponse(JSON.stringify({ success: true, data }), 201);

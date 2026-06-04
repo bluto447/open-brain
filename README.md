@@ -55,6 +55,23 @@ v2.0 adds blended retrieval ranking so the most *relevant* memories surface — 
 - **Tunable weights** — `ob_scoring_config` singleton table lets you adjust weights and half-lives without code changes
 - **Backward compatible** — `match_brain` gains a `p_use_composite` flag (default false). MCP `semantic_search` uses composite by default with a `use_composite` toggle
 
+## v2.0 — Relationship Extraction (entity graph)
+
+The graph turns the flat memory store into a connected one. Every memory's
+LLM-extracted `people` / `topics` / `tags` are resolved into **entities**, linked
+to their memories, and connected to each other by **co-occurrence edges** — with
+**no extra LLM call** (the signal is already extracted at ingest).
+
+- **`entities`** — deduped nodes (`person`, `topic`, `project`, `tool`, `org`), keyed on a deterministic `(normalized_name, entity_type)`
+- **`memory_entities`** — which memory mentions which entity (with provenance + weight)
+- **`entity_edges`** — undirected co-occurrence (every memory that mentions A and B strengthens the A–B edge); read-path RPCs filter by `p_min_weight` so callers control graph density
+- **`entity_aliases`** — manual `alias → canonical` merges (e.g. "Brian" → "Brian Snipes"), no LLM
+- **Derived & rebuildable** — `rebuild_entity_graph()` replays every memory through the *same* upsert path the live ingest uses, so the backfill and the pipeline never drift
+- **Forward-compatible** — v2.1 will add LLM-typed relations into the same `entity_edges` table via `relation <> 'co_occurs'`, with no schema change
+
+The pipeline writes the graph on every ingest (`hyper-worker` Step 6, error-isolated
+so a graph failure never blocks a memory insert). Backfill: `node scripts/backfill-entity-graph.js`.
+
 ### v1.5 features (preserved)
 
 - **Memory types** — Every memory is classified as `episodic`, `semantic`, `procedural`, `preference`, or `decision`
@@ -195,6 +212,12 @@ open-brain/
 | `merge_memories(p_ids, p_merged_content, p_source)` | Merge N memories into one (v1.5) |
 | `find_duplicates(p_embedding, p_threshold, p_limit)` | Find near-duplicate memories (v1.5) |
 | `find_contradictions(p_min_similarity, p_max_similarity, p_limit)` | Surface potential contradictions (v1.5) |
+| `upsert_memory_entities(p_memory_id, p_people, p_topics, p_tags)` | Resolve metadata into entities + links + co-occurrence edges. service_role only (v2.0) |
+| `rebuild_entity_graph()` | Idempotent full graph rebuild from `open_brain.metadata`. service_role only (v2.0) |
+| `get_entity(p_name, p_type)` | Resolve an entity by normalized name (v2.0) |
+| `get_entity_neighbors(p_entity_id, p_min_weight, p_limit)` | Co-occurrence neighbors, ordered by weight; `p_min_weight` filters noise (v2.0) |
+| `get_memories_for_entity(p_entity_id, p_only_valid, p_limit)` | Memories linked to an entity, newest first (v2.0) |
+| `list_entities(p_type, p_min_mentions, p_limit)` | Node list ranked by mention count (v2.0) |
 
 ## Roadmap
 
@@ -204,7 +227,8 @@ open-brain/
 - [x] **v1.5 Memory Intelligence** — mutation tools, temporal validity, type classification, dedup, contradiction detection (8 tools)
 - [x] Memory type backfill (280 memories classified)
 - [x] **v2.0 Sprint 1: Composite scoring** — blended retrieval with per-type recency decay + log-scaled frequency (deployed April 2026)
-- [ ] v2.0: Relationship extraction (entity graph)
+- [x] **v2.0 Sprint 2: Relationship extraction** — entity graph (entities + co-occurrence edges) derived from memory metadata, zero extra LLM calls (deployed June 2026)
+- [ ] v2.1: Typed relations (LLM subject–relation–object triples into `entity_edges`)
 - [ ] v2.0: Dashboard (memory stats + entity graph visualization)
 - [ ] Quick Capture templates (Slack webhook, iOS shortcut)
 - [ ] Open-source release + MCP marketplace listing

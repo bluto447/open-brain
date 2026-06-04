@@ -374,6 +374,8 @@ GRANT  EXECUTE ON FUNCTION public.rebuild_entity_graph() TO service_role;
 -- =============================================================================
 
 -- get_entity: normalized lookup by name (optional type filter).
+-- Falls back through entity_aliases so a name merged into a canonical entity
+-- (e.g. "Brian Snipes" -> "Brian") still resolves on read.
 CREATE OR REPLACE FUNCTION public.get_entity(
   p_name text,
   p_type text DEFAULT NULL
@@ -384,14 +386,21 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT *
-  FROM public.entities
-  WHERE normalized_name = public.ob_normalize_entity(p_name)
-    AND (p_type IS NULL OR entity_type = p_type)
+  WITH norm AS (SELECT public.ob_normalize_entity(p_name) AS n)
+  SELECT e.*
+  FROM public.entities e, norm
+  WHERE e.normalized_name = norm.n
+    AND (p_type IS NULL OR e.entity_type = p_type)
+  UNION
+  SELECT e.*
+  FROM public.entity_aliases a
+  JOIN public.entities e ON e.id = a.canonical_id, norm
+  WHERE a.alias_norm = norm.n
+    AND (p_type IS NULL OR a.entity_type = p_type)
   ORDER BY mention_count DESC
 $$;
 
-COMMENT ON FUNCTION public.get_entity IS 'v2.0: Resolve an entity by (normalized) name, optional type filter.';
+COMMENT ON FUNCTION public.get_entity IS 'v2.0: Resolve an entity by (normalized) name, optional type filter. Falls back through entity_aliases so merged-away names still resolve.';
 REVOKE EXECUTE ON FUNCTION public.get_entity(text, text) FROM PUBLIC;
 GRANT  EXECUTE ON FUNCTION public.get_entity(text, text) TO service_role, authenticated;
 

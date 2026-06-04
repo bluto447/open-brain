@@ -80,7 +80,7 @@ so a graph failure never blocks a memory insert). Backfill: `node scripts/backfi
 - **Dedup on ingest** — Near-duplicate detection prevents redundant memories (threshold: 0.92 cosine similarity)
 - **Contradiction detection** — `find_contradictions()` surfaces high-similarity memory pairs for review
 
-### MCP Tools (8 total)
+### MCP Tools (11 total)
 
 | Tool | Description |
 |------|-------------|
@@ -92,6 +92,9 @@ so a graph failure never blocks a memory insert). Backfill: `node scripts/backfi
 | `update_memory` | Update content + re-embed (v1.5) |
 | `deprecate_memory` | Soft-delete with reason + superseded_by chain (v1.5) |
 | `merge_memories` | Combine N memories into one, deprecate sources (v1.5) |
+| `get_entity_neighbors` | Entity graph: what a person/topic/project co-occurs with, `min_weight` filters noise (v2.0) |
+| `get_entity_memories` | Entity graph: memories that mention an entity (v2.0) |
+| `list_entities` | Entity graph: most-mentioned people/topics/projects (v2.0) |
 
 ## Quick Start
 

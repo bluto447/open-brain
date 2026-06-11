@@ -5,6 +5,7 @@
  *   1. Generates a 1536-dim embedding with OpenAI text-embedding-3-small
  *   2. Extracts structured metadata with OpenAI gpt-4o-mini
  *   3. Inserts the content, embedding, and metadata into the `open_brain` table
+ *   4. (v2.0) Upserts the entity graph from the extracted people/topics/tags
  *
  * Environment variables required:
  *   - OPENAI_API_KEY          — OpenAI secret key

@@ -11,6 +11,8 @@
  *     scorer reported "all_ideas_fully_scored" forever while newer ideas piled
  *     up unscored. Silent stall began 2026-04-14 when the pipeline crossed
  *     200 researched rows; 267 ideas were stuck in researching by 2026-06-10.
+ *   - Scan errors surface as scan_failed (HTTP 500) instead of being
+ *     collapsed into "all_ideas_fully_scored" (Codex review finding).
  *   - First version with a repo home: open-brain/supabase/functions/reasoning-scorer.
  *
  * v6 changes:

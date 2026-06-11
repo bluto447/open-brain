@@ -18,7 +18,10 @@
  *     pxResult.citations, which the Perplexity API deprecated in favor of
  *     search_results — empty citations meant zero sources. v5 asks the model
  *     for typed key sources (url/title/type) in the schema AND merges in
- *     search_results ?? citations as ground truth, deduped by URL.
+ *     search_results + citations as ground truth, deduped by canonical URL.
+ *   - Strict-schema clean per Codex review: every nested property is in
+ *     required; nullables use anyOf [{type},{type:"null"}] (the shape
+ *     Perplexity's own Pydantic examples emit).
  *   - This repo copy replaces a stale v1 file; it now matches what is
  *     deployed (the prior deployed v4 had no repo home — drift fixed).
  *

@@ -75,8 +75,9 @@ function buildClassifyPrompt(idea: Record<string, unknown>): string {
   const rr = (idea.research_result ?? {}) as Record<string, unknown>;
   const competitors = (rr.competitors as Array<Record<string, unknown>> | undefined) ?? [];
   const parts = [
-    `Title: ${idea.idea || idea.title || "Untitled"}`,
-    idea.description ? `Description: ${idea.description}` : "",
+    `Title: ${idea.idea || "Untitled"}`,
+    idea.pain_point_verbatim ? `Pain point: ${idea.pain_point_verbatim}` : "",
+    idea.notes ? `Notes: ${idea.notes}` : "",
     idea.target_user ? `Target user: ${idea.target_user}` : "",
     idea.monetization ? `Monetization: ${idea.monetization}` : "",
     rr.market_summary ? `Research market summary: ${String(rr.market_summary).slice(0, 600)}` : "",
@@ -117,7 +118,17 @@ async function classifyOne(
     }
     const result = await resp.json();
     const content = result.choices?.[0]?.message?.content ?? "";
-    const parsed = JSON.parse(content);
+    // deepseek wraps JSON in markdown fences despite json_object mode —
+    // same fallback the reasoning-scorer uses: direct parse, then extract
+    // the first {...} block.
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(content.trim());
+    } catch {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return { id, type: null, error: "no_json_in_response" };
+      try { parsed = JSON.parse(jsonMatch[0]); } catch { return { id, type: null, error: "json_parse_failed" }; }
+    }
     const t = parsed.product_type;
     if (typeof t === "string" && (PRODUCT_TYPES as readonly string[]).includes(t)) {
       return { id, type: t, error: null };
@@ -136,7 +147,7 @@ async function runClassifyTypes(
 ): Promise<Response> {
   const { data: ideas, error } = await supabase
     .from("pipeline")
-    .select("id, idea, description, target_user, monetization, research_result")
+    .select("id, idea, notes, pain_point_verbatim, target_user, monetization, research_result")
     .is("type", null)
     .not("research_result", "is", null)
     .order("created_at", { ascending: true })

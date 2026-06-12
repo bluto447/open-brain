@@ -63,11 +63,16 @@ AS $$
   );
 $$;
 
--- Read-only, but still not for anon: CREATE FUNCTION implicitly grants
--- EXECUTE to PUBLIC, so revoke first, then grant to the roles that need it
--- (memory #1584). SECURITY INVOKER (default) on purpose — service_role
--- bypasses RLS, authenticated reads via the "Allow authenticated all" policy.
+-- Read-only, but still not for anon. TWO revokes are required:
+--   1. CREATE FUNCTION implicitly grants EXECUTE to PUBLIC (memory #1584).
+--   2. Supabase ALTER DEFAULT PRIVILEGES grants EXECUTE to anon EXPLICITLY,
+--      so revoking PUBLIC alone leaves anon=X in the ACL. Verified live
+--      2026-06-11: after REVOKE FROM PUBLIC, anon could still execute.
+--      get_advisors(security) does NOT flag this — test with SET ROLE anon.
+-- SECURITY INVOKER (default) on purpose — service_role bypasses RLS,
+-- authenticated reads via the "Allow authenticated all" policy.
 REVOKE EXECUTE ON FUNCTION public.ob_brain_stats(int) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.ob_brain_stats(int) FROM anon;
 GRANT  EXECUTE ON FUNCTION public.ob_brain_stats(int) TO service_role, authenticated;
 
 COMMIT;

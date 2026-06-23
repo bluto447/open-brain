@@ -1,10 +1,15 @@
 /**
- * pipeline-backfill — Edge Function (v1)
+ * pipeline-backfill — Edge Function (v3)
  *
  * One-off backfill utility for the demand-validator upstream fixes
  * (HANDOFF-upstream-fixes-demand-validator.md, UP-04 + UP-05, 2026-06-10).
  * Safe to keep deployed: both modes are idempotent and no-op when there is
  * nothing left to backfill. Driven manually in batches via net.http_post.
+ *
+ * v3: deepseek wraps JSON in markdown fences despite json_object mode —
+ *     added the same fence-stripping fallback the reasoning-scorer uses.
+ * v2: fix select list — pipeline has no description/title columns; context
+ *     comes from idea, notes, pain_point_verbatim, target_user, monetization.
  *
  * Modes:
  *   POST { mode: "classify_types", limit?: 30, dry_run?: boolean }
@@ -18,7 +23,8 @@
  *     lack users_estimate_numeric, parse the existing users_estimate text
  *     deterministically ("50k+" -> 50000, "10M users" -> 10000000,
  *     "~2,000" -> 2000). No LLM. Unparseable -> null (key still written so
- *     re-runs skip the row). Merges into research_result JSONB.
+ *     re-runs skip the row). Merges into research_result JSONB with an
+ *     optimistic run_id guard so a concurrent re-research is never clobbered.
  *
  * Secrets: OPENROUTER_API_KEY (classify mode), SUPABASE_URL,
  *          SUPABASE_SERVICE_ROLE_KEY
@@ -194,7 +200,7 @@ async function runClassifyTypes(
     classified,
     failed,
     failures: failures.slice(0, 5),
-    sample: dryRun ? results.slice(0, 5) : undefined,
+    sample: dryRun ? results.slice(0, 10).map((r, i) => ({ idea: String((ideas[i] as Record<string, unknown>).idea).slice(0, 80), type: r.type, error: r.error })) : undefined,
     remaining: remaining ?? -1,
     done: (remaining ?? 1) === 0,
   });

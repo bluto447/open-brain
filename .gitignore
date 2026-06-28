@@ -27,6 +27,7 @@ build/
 
 # Supabase local
 .supabase/
+supabase/.temp/
 
 # Internal docs (not for public repo)
 saas-viability.md

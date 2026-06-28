@@ -2,6 +2,10 @@
 
 Run through this before pushing a release that changes schema, RPCs, MCP tools, or Edge Functions.
 
+## Edge Function source (commit before deploy)
+
+- [ ] Every deployed Edge Function's source is committed to `open-brain/supabase/functions/<slug>/` — deploy ≠ commit. The `edge-deploy-guard` PreToolUse hook blocks an MCP `deploy_edge_function` whose inline source isn't committed at HEAD (override `ALLOW_EDGE_DEPLOY_DRIFT=1`); `/sync-check` Phase 1c is the post-hoc audit.
+
 ## Auto-generated docs
 
 - [ ] Run `arch-snapshot` Edge Function to get live Data Layer markdown
